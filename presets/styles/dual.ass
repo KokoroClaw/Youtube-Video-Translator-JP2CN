@@ -1,0 +1,29 @@
+; ============================================================
+; dual.ass - Bilingual Japanese+Chinese ASS subtitle preset
+; ============================================================
+; How to customize:
+;   1. Open this file in Aegisub
+;   2. Edit styles in Style Manager (Shift+F3)
+;   3. Save - program will load your changes automatically
+;
+; Style definitions:
+;   Dual_ZH  - Chinese text (top line, white, large)
+;   Dual_JP  - Japanese text (bottom line, gray, smaller)
+; ============================================================
+
+[Script Info]
+Title: Bilingual JP→CN Subtitle Preset
+ScriptType: v4.00+
+WrapStyle: 0
+PlayResX: 1920
+PlayResY: 1080
+ScaledBorderAndShadow: yes
+YCbCr Matrix: None
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Dual_JP,Arial,24,&H00D0D0D0,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,0,0,10,134
+Style: Dual_ZH,Microsoft JhengHei UI,80,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,8,0,8,0,0,60,134
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

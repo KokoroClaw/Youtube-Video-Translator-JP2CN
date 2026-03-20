@@ -1,0 +1,9 @@
+yt-dlp
+openai-whisper
+openai
+anthropic
+google-genai
+groq
+ollama
+python-dotenv
+deep-translator

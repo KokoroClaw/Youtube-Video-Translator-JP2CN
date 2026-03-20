@@ -1,0 +1,28 @@
+; ============================================================
+; zh.ass - Chinese-only ASS subtitle preset
+; ============================================================
+; How to customize:
+;   1. Open this file in Aegisub
+;   2. Edit styles in Style Manager (Shift+F3)
+;   3. Save - program will load your changes automatically
+;
+; Style definitions:
+;   ZH_Only - Chinese text only (white, large)
+; ============================================================
+
+[Script Info]
+Title: Chinese-only Subtitle Preset
+ScriptType: v4.00+
+WrapStyle: 0
+PlayResX: 1920
+PlayResY: 1080
+ScaledBorderAndShadow: yes
+YCbCr Matrix: None
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: ZH_Only,Microsoft JhengHei UI,20,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,0,8,0,0,20,134
+Style: memo,Microsoft JhengHei UI,40,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,0,4,0,0,40,134
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
