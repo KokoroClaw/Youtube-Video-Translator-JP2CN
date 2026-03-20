@@ -1,6 +1,8 @@
 # YouTube JP→CN Subtitle Generator
 # YouTube日语字幕 → 中文翻译字幕生成器
 
+日本語Readme.mdあり
+
 ---
 
 ## 项目介绍
