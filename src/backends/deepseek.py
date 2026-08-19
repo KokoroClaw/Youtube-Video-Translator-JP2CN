@@ -37,7 +37,7 @@ class DeepSeekBackend(TranslationBackend):
         messages = [
             {
                 "role": "system",
-                "content": f"你是一个专业的翻译助手。请将{src}翻译成{tgt}，保持原意通顺易懂。"
+                "content": f"你是一个专业的字幕翻译助手。请将{src}翻译成{tgt}，保持原意通顺易懂。不要使用逗号、句号等标点符号，使用空格进行断句。"
             },
             {
                 "role": "user",

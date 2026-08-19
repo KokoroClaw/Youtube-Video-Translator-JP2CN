@@ -38,6 +38,25 @@ def get_ytdlp_path() -> str:
     return os.environ.get("YTDLP_PATH", "")
 
 
+def resolve_ffmpeg_command() -> tuple[str, dict[str, str]]:
+    """Resolve ffmpeg.exe from FFMPEG_PATH and return its execution environment."""
+    configured_value = get_ffmpeg_path()
+    env = os.environ.copy()
+    if not configured_value:
+        return "ffmpeg", env
+
+    configured = Path(configured_value)
+    if configured.is_file():
+        return str(configured), env
+
+    candidate = configured / "ffmpeg.exe"
+    if candidate.is_file():
+        return str(candidate), env
+
+    env["PATH"] = configured_value + os.pathsep + env.get("PATH", "")
+    return "ffmpeg", env
+
+
 def run_command(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
     """
     Run a shell command with proper encoding for Windows.
@@ -91,16 +110,13 @@ def merge_audio_video(
     Returns:
         Path to the merged output file.
     """
-    ffmpeg_dir = get_ffmpeg_path()
-    env = os.environ.copy()
-    if ffmpeg_dir:
-        env["PATH"] = ffmpeg_dir + os.pathsep + env.get("PATH", "")
+    ffmpeg_command, env = resolve_ffmpeg_command()
 
     # Write to a temp file first to avoid overwriting input
     temp_output = output_path.with_suffix(".tmp.mp4")
 
     cmd = [
-        "ffmpeg", "-y",
+        ffmpeg_command, "-y",
         "-i", str(video_path),
         "-i", str(audio_path),
         "-c:v", "copy",
@@ -108,7 +124,17 @@ def merge_audio_video(
         "-strict", "experimental",
         str(temp_output),
     ]
-    result = run_command(cmd, env=env)
+    try:
+        result = run_command(cmd, env=env)
+    except PermissionError as exc:
+        raise RuntimeError(
+            f"Windows 拒绝执行 FFmpeg：{ffmpeg_command}。"
+            "请在普通 PowerShell 中运行 Web 服务，或检查该文件的执行权限。"
+        ) from exc
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            "找不到 ffmpeg.exe，请检查 .env 中的 FFMPEG_PATH。"
+        ) from exc
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg merge failed:\n{result.stderr or result.stdout}")
 

@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Kotoba Studio · 日语字幕工作台</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+  <main class="shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Kotoba Studio 首页">
+        <span class="brand-mark">言</span>
+        <span><strong>Kotoba</strong><small>SUBTITLE STUDIO</small></span>
+      </a>
+      <div class="system-status" id="systemStatus">
+        <span class="status-dot"></span>
+        <span>正在检查服务</span>
+      </div>
+    </header>
+
+    <section class="hero">
+      <p class="eyebrow">JAPANESE → SIMPLIFIED CHINESE</p>
+      <h1>把日语视频变成<br><span>干净准确的字幕</span></h1>
+      <p class="hero-copy">粘贴 YouTube 地址，使用 Whisper 识别、GPT 翻译，并自动生成双语与纯中文字幕。</p>
+    </section>
+
+    <nav class="tabs" aria-label="功能切换">
+      <button class="tab active" data-view="task">新建任务</button>
+      <button class="tab" data-view="editor">字幕编辑 <span id="editorCueCount">0</span></button>
+      <button class="tab" data-view="glossary">术语库 <span id="termCount">0</span></button>
+    </nav>
+
+    <section class="view active" id="taskView">
+      <div class="workspace-grid">
+        <form class="panel task-panel" id="jobForm">
+          <div class="panel-heading">
+            <div><span class="step-number">01</span><h2>视频来源</h2></div>
+            <p>输入一个公开或当前网络可访问的 YouTube 视频</p>
+          </div>
+
+          <label class="field-label" for="videoUrl">YouTube URL</label>
+          <div class="url-field">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            <input id="videoUrl" name="url" type="url" required placeholder="https://www.youtube.com/watch?v=..." autocomplete="off">
+          </div>
+
+          <div class="option-grid">
+            <label class="option-card">
+              <input type="checkbox" name="download_video" checked>
+              <span class="check-ui"></span>
+              <span><strong>下载视频</strong><small>生成最终 MP4 文件</small></span>
+            </label>
+            <label class="option-card">
+              <input type="checkbox" name="download_thumbnail" checked>
+              <span class="check-ui"></span>
+              <span><strong>保存封面</strong><small>下载最高可用缩略图</small></span>
+            </label>
+            <label class="option-card">
+              <input type="checkbox" name="use_separator">
+              <span class="check-ui"></span>
+              <span><strong>提取人声</strong><small>默认关闭，嘈杂音频时开启</small></span>
+            </label>
+          </div>
+
+          <details class="advanced">
+            <summary>高级设置 <span>Whisper 与自动拆段</span></summary>
+            <label class="field-label" for="initialPrompt">语音识别提示</label>
+            <textarea id="initialPrompt" rows="3">日本語の会話です。芸人のトークやコントが含まれる場合があります。</textarea>
+            <div class="splitter-settings">
+              <label class="splitter-toggle"><input type="checkbox" id="autoSplitSubtitles" checked><span><strong>自动拆分过长字幕</strong><small>同步拆分中日文和时间轴，不只是换行</small></span></label>
+              <div class="splitter-fields">
+                <div><label class="field-label" for="subtitleDensity">字幕密度</label><select class="text-input" id="subtitleDensity"><option value="short">短句</option><option value="standard" selected>标准（推荐）</option><option value="compact">紧凑</option></select></div>
+                <div><label class="field-label" for="subtitleMaxLines">每段最多行数</label><select class="text-input" id="subtitleMaxLines"><option value="1">1 行</option><option value="2" selected>2 行</option><option value="3">3 行</option></select></div>
+              </div>
+              <p>标准模式会根据视频宽度、字号和边距动态判断；每个拆分片段至少保留约 0.7 秒。</p>
+            </div>
+          </details>
+
+          <button class="primary-button" type="submit" id="startButton">
+            <span>开始生成字幕</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          <p class="form-error" id="formError" role="alert"></p>
+        </form>
+
+        <aside class="panel progress-panel" id="progressPanel">
+          <div class="panel-heading compact">
+            <div><span class="step-number">02</span><h2>处理进度</h2></div>
+            <span class="job-state idle" id="jobState">等待任务</span>
+          </div>
+
+          <div class="progress-visual">
+            <div class="progress-ring" id="progressRing" style="--progress: 0">
+              <div><strong id="progressValue">0</strong><span>%</span></div>
+            </div>
+            <div class="progress-copy">
+              <p class="stage" id="stageText">准备就绪</p>
+              <p id="messageText">提交视频后，这里会显示实时处理状态。</p>
+            </div>
+          </div>
+
+          <ol class="milestones" id="milestones">
+            <li data-at="5"><span></span>准备视频</li>
+            <li data-at="18"><span></span>下载素材</li>
+            <li data-at="42"><span></span>语音识别</li>
+            <li data-at="67"><span></span>翻译字幕</li>
+            <li data-at="78"><span></span>自动拆段</li>
+            <li data-at="84"><span></span>生成文件</li>
+          </ol>
+
+          <div class="log-box" id="logBox"><p>等待任务开始…</p></div>
+        </aside>
+      </div>
+
+      <section class="panel results-panel hidden" id="resultsPanel">
+        <div class="panel-heading compact">
+          <div><span class="step-number">03</span><h2>生成结果</h2></div>
+          <span class="complete-mark">处理完成</span>
+        </div>
+        <div class="result-grid" id="resultGrid"></div>
+      </section>
+
+      <section class="panel post-panel hidden" id="postPanel">
+        <div class="panel-heading compact">
+          <div><span class="step-number">04</span><h2>压制与发布</h2></div>
+          <span class="term-total">独立后处理</span>
+        </div>
+        <div class="post-grid">
+          <form class="workflow-card" id="burnForm">
+            <div class="workflow-title"><span>压</span><div><h3>压制硬字幕</h3><p>选择一种字幕烧录到画面，不覆盖原视频</p></div></div>
+            <div class="radio-stack">
+              <label><input type="radio" name="subtitle_type" value="zh" checked><span><strong>纯中文字幕</strong><small>使用 zh.ass</small></span></label>
+              <label><input type="radio" name="subtitle_type" value="dual"><span><strong>中日双语字幕</strong><small>使用 dual.ass</small></span></label>
+            </div>
+            <div class="operation-status" id="burnStatus"><span></span><p>准备就绪</p><strong>0%</strong></div>
+            <button class="primary-button small full" type="submit" id="burnButton">开始压制</button>
+            <p class="form-error" id="burnError" role="alert"></p>
+          </form>
+
+          <form class="workflow-card" id="uploadForm">
+            <div class="workflow-title"><span>稿</span><div><h3>投稿到 B 站</h3><p>通过本机 biliup 上传，每次都需要确认</p></div></div>
+            <div class="login-strip"><div><span class="status-dot"></span><strong id="biliLoginText">正在检查 biliup</strong></div><button type="button" id="biliLoginButton">扫码登录</button></div>
+            <label class="field-label" for="uploadVideo">投稿视频</label>
+            <select class="text-input" id="uploadVideo" required></select>
+            <label class="field-label" for="biliTitle">标题</label>
+            <input class="text-input" id="biliTitle" required maxlength="80" placeholder="B站投稿标题">
+            <label class="field-label" for="biliTags">标签</label>
+            <input class="text-input" id="biliTags" required value="日语,中字,翻译">
+            <div class="category-pair">
+              <div><label class="field-label" for="biliCategory">大区</label><select class="text-input" id="biliCategory" required><option>正在加载分区</option></select></div>
+              <div><label class="field-label" for="biliTid">视频分区</label><select class="text-input" id="biliTid" required><option value="158">穿搭</option></select></div>
+            </div>
+            <p class="category-hint">将提交分区 ID：<strong id="biliTidValue">158</strong></p>
+            <label class="field-label" for="biliDescription">简介</label>
+            <textarea class="text-input" id="biliDescription" rows="3" maxlength="2000" placeholder="视频简介"></textarea>
+            <div class="field-pair">
+              <div><label class="field-label" for="biliCopyright">稿件类型</label><select class="text-input" id="biliCopyright"><option value="2" selected>转载</option><option value="1">自制</option></select></div>
+              <div><label class="field-label" for="biliSource">转载来源</label><input class="text-input" id="biliSource" placeholder="原 YouTube URL"></div>
+            </div>
+            <label class="cover-option"><input type="checkbox" id="useThumbnail" checked><span>使用视频缩略图作为封面（自动转换为标准 JPEG）</span></label>
+            <label class="confirm-publish"><input type="checkbox" id="confirmPublish"><span>我确认拥有发布权，并同意将视频公开提交至 B 站审核</span></label>
+            <div class="upload-log hidden" id="uploadLog"></div>
+            <button class="primary-button small full danger-action" type="submit" id="uploadButton">确认并上传</button>
+            <p class="form-error" id="uploadError" role="alert"></p>
+          </form>
+        </div>
+      </section>
+    </section>
+
+    <section class="view" id="editorView">
+      <section class="panel editor-empty" id="editorEmpty">
+        <span class="empty-glyph">字</span>
+        <h2>完成一个字幕任务后即可开始校对</h2>
+        <p>这里可以同步编辑日文、中文、时间轴和 ASS 样式，并直接交给现有压制流程。</p>
+        <button class="secondary-button" type="button" id="editorBackToTask">返回新建任务</button>
+      </section>
+
+      <div class="editor-workspace hidden" id="editorWorkspace">
+        <section class="panel editor-toolbar">
+          <div>
+            <p class="eyebrow">SUBTITLE EDITOR</p>
+            <h2 id="editorTitle">字幕工作台</h2>
+            <span id="editorSaveState">尚未修改</span>
+          </div>
+          <div class="editor-toolbar-actions">
+            <button class="icon-button" type="button" id="undoSubtitle" title="撤销 Ctrl+Z">↶</button>
+            <button class="icon-button" type="button" id="redoSubtitle" title="重做 Ctrl+Y">↷</button>
+            <button class="secondary-button compact-button" type="button" id="reloadSubtitle">重新载入</button>
+            <button class="primary-button small compact-button" type="button" id="saveSubtitle">保存字幕</button>
+          </div>
+        </section>
+
+        <div class="editor-top-grid">
+          <section class="panel preview-panel">
+            <div class="editor-section-heading">
+              <div><span class="step-number">01</span><h3>画面预览</h3></div>
+              <div class="mode-switch" aria-label="预览字幕版本">
+                <button type="button" data-preview-mode="zh">纯中文</button>
+                <button type="button" class="active" data-preview-mode="dual">中日双语</button>
+              </div>
+            </div>
+            <div class="video-stage" id="videoStage">
+              <video id="subtitleVideo" controls preload="metadata"></video>
+              <div class="subtitle-overlay" id="subtitleOverlay" aria-hidden="true">
+                <div id="previewZh"></div>
+                <div id="previewJp"></div>
+              </div>
+              <div class="exact-preview hidden" id="exactPreviewResult">
+                <img id="exactPreviewImage" alt="FFmpeg 精确字幕预览">
+                <button type="button" id="closeExactPreview">返回实时预览</button>
+              </div>
+            </div>
+            <div class="preview-controls">
+              <span>当前时间 <strong id="videoTimecode">00:00.000</strong></span>
+              <button class="secondary-button mini-button" type="button" id="exactPreviewButton">精确预览当前帧</button>
+            </div>
+            <p class="preview-note">实时预览用于快速编辑；精确预览由 FFmpeg 按最终 ASS 渲染。</p>
+          </section>
+
+          <aside class="panel style-panel">
+            <div class="editor-section-heading">
+              <div><span class="step-number">02</span><h3>字幕样式</h3></div>
+            </div>
+            <label class="field-label" for="styleTrack">编辑对象</label>
+            <select class="text-input" id="styleTrack">
+              <option value="zh_only">纯中文字幕</option>
+              <option value="dual_zh" selected>双语 · 中文</option>
+              <option value="dual_jp">双语 · 日文</option>
+            </select>
+            <div class="style-field-pair">
+              <div><label class="field-label" for="styleFont">字体</label><input class="text-input" id="styleFont" list="fontSuggestions"></div>
+              <div><label class="field-label" for="styleSize">字号</label><input class="text-input" id="styleSize" type="number" min="8" max="200" step="1"></div>
+            </div>
+            <datalist id="fontSuggestions">
+              <option value="Microsoft YaHei"><option value="Microsoft JhengHei UI"><option value="SimHei"><option value="Arial"><option value="Noto Sans CJK SC">
+            </datalist>
+            <div class="style-field-pair color-pair">
+              <div><label class="field-label" for="stylePrimary">文字颜色</label><input id="stylePrimary" type="color"></div>
+              <div><label class="field-label" for="styleOutlineColor">描边颜色</label><input id="styleOutlineColor" type="color"></div>
+            </div>
+            <div class="style-field-pair">
+              <div><label class="field-label" for="styleOutline">描边</label><input class="text-input" id="styleOutline" type="number" min="0" max="20" step="0.5"></div>
+              <div><label class="field-label" for="styleShadow">阴影</label><input class="text-input" id="styleShadow" type="number" min="0" max="20" step="0.5"></div>
+            </div>
+            <div class="style-field-pair">
+              <div><label class="field-label" for="styleAlignment">位置</label><select class="text-input" id="styleAlignment"><option value="8">顶部居中</option><option value="5">画面居中</option><option value="2">底部居中</option><option value="7">左上</option><option value="9">右上</option><option value="1">左下</option><option value="3">右下</option></select></div>
+              <div><label class="field-label" for="styleMarginV">垂直边距</label><input class="text-input" id="styleMarginV" type="number" min="0" max="2000" step="1"></div>
+            </div>
+            <label class="style-toggle"><input id="styleBold" type="checkbox"><span>使用粗体</span></label>
+          </aside>
+        </div>
+
+        <section class="panel cue-panel">
+          <div class="editor-section-heading cue-heading">
+            <div><span class="step-number">03</span><h3>字幕内容与时间轴</h3><span class="cue-summary" id="cueSummary"></span></div>
+            <div class="cue-actions">
+              <button type="button" id="addCue">＋ 新增</button>
+              <button type="button" id="splitCue">拆分</button>
+              <button type="button" id="mergeCue">与下一句合并</button>
+              <button type="button" class="delete" id="deleteCue">删除</button>
+            </div>
+          </div>
+          <div class="timing-tools">
+            <button type="button" data-nudge="-0.5">−0.5s</button><button type="button" data-nudge="-0.1">−0.1s</button>
+            <button type="button" id="setCueStart">当前时间设为开始</button><button type="button" id="setCueEnd">当前时间设为结束</button>
+            <button type="button" data-nudge="0.1">＋0.1s</button><button type="button" data-nudge="0.5">＋0.5s</button>
+          </div>
+          <div class="cue-table" id="cueTable"></div>
+          <div class="editor-messages">
+            <p id="editorWarnings"></p>
+            <p class="form-error" id="editorError" role="alert"></p>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="view" id="glossaryView">
+      <div class="glossary-layout">
+        <form class="panel glossary-form" id="glossaryForm">
+          <div class="panel-heading">
+            <div><span class="step-number">A</span><h2 id="glossaryFormTitle">添加术语</h2></div>
+            <p>命中的日文词会强制使用你指定的中文译法</p>
+          </div>
+          <input type="hidden" id="termId">
+          <label class="field-label" for="sourceTerm">日文原词</label>
+          <input class="text-input" id="sourceTerm" required maxlength="200" placeholder="例：先輩">
+          <label class="field-label" for="targetTerm">指定中文译法</label>
+          <input class="text-input" id="targetTerm" required maxlength="200" placeholder="例：前辈">
+          <label class="field-label" for="termNote">备注 <span>可选</span></label>
+          <textarea class="text-input" id="termNote" rows="3" maxlength="500" placeholder="角色名、作品名或使用场景"></textarea>
+          <div class="form-actions">
+            <button class="secondary-button hidden" type="button" id="cancelEdit">取消编辑</button>
+            <button class="primary-button small" type="submit" id="saveTerm">保存术语</button>
+          </div>
+          <p class="form-error" id="glossaryError" role="alert"></p>
+        </form>
+
+        <section class="panel glossary-list-panel">
+          <div class="panel-heading compact">
+            <div><span class="step-number">B</span><h2>术语列表</h2></div>
+            <span class="term-total" id="termTotal">0 个术语</span>
+          </div>
+          <div class="glossary-list" id="glossaryList"></div>
+        </section>
+      </div>
+    </section>
+
+    <footer><span>Kotoba Studio</span><span>本地运行 · API Key 不会发送到浏览器</span></footer>
+  </main>
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>

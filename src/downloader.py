@@ -3,10 +3,33 @@ YouTube video downloader using yt-dlp.
 """
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 from src.utils import get_ytdlp_path, get_ffmpeg_path, run_command
+
+
+def _youtube_runtime_args() -> list[str]:
+    """Return runtime and client options required by current YouTube extraction."""
+    args = []
+    runtime = os.environ.get("YTDLP_JS_RUNTIME", "node").strip()
+    if runtime:
+        args.extend(["--js-runtimes", runtime])
+
+    force_ipv4 = os.environ.get("YTDLP_FORCE_IPV4", "true").strip().lower()
+    if force_ipv4 in {"1", "true", "yes", "on"}:
+        args.append("--force-ipv4")
+
+    player_client = os.environ.get(
+        "YTDLP_PLAYER_CLIENT", "web_embedded"
+    ).strip()
+    if player_client:
+        args.extend([
+            "--extractor-args",
+            f"youtube:player_client={player_client}",
+        ])
+    return args
 
 
 def get_video_info(url: str) -> dict[str, Any]:
@@ -20,7 +43,7 @@ def get_video_info(url: str) -> dict[str, Any]:
         Dictionary with keys: title, description, thumbnail, etc.
     """
     ytdlp = get_ytdlp_path()
-    cmd = [ytdlp, "--dump-json", "--no-download", url]
+    cmd = [ytdlp, *_youtube_runtime_args(), "--dump-json", "--no-download", url]
     result = run_command(cmd)
     if result.returncode != 0:
         raise RuntimeError(f"yt-dlp --dump-json failed:\n{result.stderr or result.stdout}")
@@ -68,55 +91,67 @@ def download_media(
 
     # Always download audio (needed for Whisper)
     audio_path = output_dir / f"{title}_audio.m4a"
-    print("  Downloading audio stream...")
-    audio_cmd = [
-        ytdlp,
-        "-f", "bestaudio[ext=m4a]/bestaudio",
-        "-o", str(audio_path),
-        "--no-playlist",
-        url,
-    ]
-    audio_result = run_command(audio_cmd)
-    if audio_result.returncode != 0:
-        raise RuntimeError(f"yt-dlp audio download failed:\n{audio_result.stderr}")
+    if audio_path.exists():
+        print("  Audio already exists, skipping download.")
+    else:
+        print("  Downloading audio stream...")
+        audio_cmd = [
+            ytdlp,
+            *_youtube_runtime_args(),
+            "-f", "bestaudio[ext=m4a]/bestaudio",
+            "-o", str(audio_path),
+            "--no-playlist",
+            url,
+        ]
+        audio_result = run_command(audio_cmd)
+        if audio_result.returncode != 0:
+            raise RuntimeError(f"yt-dlp audio download failed:\n{audio_result.stderr}")
 
     # Download video stream separately
     video_path = None
     if download_video:
-        print("  Downloading video stream...")
         video_path = output_dir / f"{title}_video_raw.mp4"
-        video_cmd = [
-            ytdlp,
-            "-f", "bestvideo/best",
-            "-o", str(video_path),
-            "--no-playlist",
-            url,
-        ]
-        video_result = run_command(video_cmd)
-        if video_result.returncode != 0:
-            raise RuntimeError(f"yt-dlp video download failed:\n{video_result.stderr}")
+        if video_path.exists():
+            print("  Video already exists, skipping download.")
+        else:
+            print("  Downloading video stream...")
+            video_cmd = [
+                ytdlp,
+                *_youtube_runtime_args(),
+                "-f", "bestvideo/best",
+                "-o", str(video_path),
+                "--no-playlist",
+                url,
+            ]
+            video_result = run_command(video_cmd)
+            if video_result.returncode != 0:
+                raise RuntimeError(f"yt-dlp video download failed:\n{video_result.stderr}")
 
     # Download thumbnail
     thumb_path = None
     if download_thumbnail:
-        print("  Downloading thumbnail...")
         thumb_name = f"{title}_thumb.jpg"
         thumb_path = output_dir / thumb_name
-        thumb_cmd = [
-            ytdlp,
-            "--write-thumbnail",
-            "--no-warnings",
-            "--output", str(thumb_path.with_suffix(".%(ext)s")),
-            "--no-download",
-            url,
-        ]
-        thumb_result = run_command(thumb_cmd)
-        if thumb_result.returncode == 0:
-            for ext in ["webp", "jpg", "png"]:
-                candidate = thumb_path.with_suffix(f".{ext}")
-                if candidate.exists() and candidate != thumb_path:
-                    candidate.rename(thumb_path)
+        if thumb_path.exists():
+            print("  Thumbnail already exists, skipping download.")
         else:
-            thumb_path = None
+            print("  Downloading thumbnail...")
+            thumb_cmd = [
+                ytdlp,
+                *_youtube_runtime_args(),
+                "--write-thumbnail",
+                "--no-warnings",
+                "--output", str(thumb_path.with_suffix(".%(ext)s")),
+                "--no-download",
+                url,
+            ]
+            thumb_result = run_command(thumb_cmd)
+            if thumb_result.returncode == 0:
+                for ext in ["webp", "jpg", "png"]:
+                    candidate = thumb_path.with_suffix(f".{ext}")
+                    if candidate.exists() and candidate != thumb_path:
+                        candidate.rename(thumb_path)
+            else:
+                thumb_path = None
 
     return video_path, audio_path, thumb_path
